@@ -267,9 +267,12 @@ Regex (Python) of shell commands that can be used in creating gesture
 action commands or when running the `run_command` and `run_commands` REST
 APIs.
 
-If left blank, then all commands in `PATH=/bin:/usr/bin/:/usr/local/bin`
-are allowed except for those blacklisted as dangerous (otherwise, whitelist
-overrides path restrictions and internal blacklist).
+If only base name given, then path is assumed to be:
+`PATH=/bin:/usr/bin/:/usr/local/bin`
+
+If left blank, then all commands in `$PATH` are allowed except for those
+blacklisted as dangerous (otherwise, whitelist overrides path restrictions
+and internal blacklist).
 
 The pre-defined command blacklist includes commands like:
 
