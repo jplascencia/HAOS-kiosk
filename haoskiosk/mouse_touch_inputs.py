@@ -12,9 +12,9 @@
 """-------------------------------------------------------------------------------
 # HAOS Kiosk Display — Mouse & Touch Input Engine
 # File: MouseTouchInputs
-# Version: 1.3.0
+# Version: 1.3.1
 # Copyright Jeff Kosowsky
-# Date: February 2026
+# Date: March 2026
 #
 #### DESCRIPTION:
    Full-featured X11 parser and command launcher for multi-button press and
@@ -250,8 +250,8 @@ in the following order:
 Each command string/list is validated to make sure that all programs mentioned are
 allowed (using function is_command_allowed). Specifically, unless ALLOW_ALL_USER_COMMANDS
 is True, the programs are tested to ensure:
-   - Program exists within ALLOWED_PATH
    - Program is white-listed (if COMMAND_WHITELIST_REGEX is not None)
+   - Program exists within ALLOWED_PATH
    - Program is not black-listed (note whitelist when set overrides blacklist)
 
 When a gesture sequence is generated, the GESTURE_CMDS_LIST is used to find the
@@ -342,7 +342,6 @@ XInputParser -> XInputEvent -> ContactGroup -> GestureSequence
 #-------------------------------------------------------------------------------
 ###  MYTODOS:
  - Add arbitrary positions
- - Test
 #-------------------------------------------------------------------------------
 
 """
@@ -465,6 +464,7 @@ if input_args.file is not None:
 
 ## Restrict paths to specific, non-system bins
 ALLOWED_PATHS = {"/bin", "/usr/bin", "/usr/local/bin"} # Executables must be in these directoriesp
+ALLOWED_PATHS_STR = ":".join(ALLOWED_PATHS)
 
 ## Commands that are white-listed -- all others are blocked (Note: set to ".*" to allow all or "" to block all)
 DEFAULT_COMMAND_WHITELIST_REGEX = r"cat|date|dbus-send|echo|false|grep|head|ls|luakit|notify-send|ping|ping6|ps|pstree|sleep|tail|test|top|tree|xdotool|xset"
@@ -1761,14 +1761,15 @@ class GestureCommand:
         Returns the corresponding CommandsDict object with "cmds" and "execs" plus the optional "msg" and "timeout" keys.
         Raise an exception if:
         - Not a valid raw command object (i.e. not a CommandsType or CommandsDict)
-        - Command is blacklisted or not whitelisted (and ALLOW_ALL_USER_COMMANDS is False)
+        - Command is not whitelisted (and ALLOW_ALL_USER_COMMANDS is False) or path disallowed or not whitelisted
         """
 
         def is_path_allowed(prog_path: str) -> bool:
             """Return True if binary is in an allowed directory."""
             try:
                 real_path = os.path.realpath(prog_path)
-                return any(real_path.startswith(allowed + "/") for allowed in ALLOWED_PATHS)
+                parent_dir = os.path.dirname(real_path)
+                return parent_dir in ALLOWED_PATHS
             except Exception:
                 return False
 
@@ -1800,20 +1801,20 @@ class GestureCommand:
 
             for prog in programs:
                 # 1. Program not found
-                prog_path = shutil.which(prog) or ""
+                prog_path = shutil.which(prog, path=ALLOWED_PATHS_STR) or ""
                 if not prog_path:
                     return False, f"Program not found: {prog}"
 
-                # 2. PATH restriction
-                if not is_path_allowed(prog_path):
-                    return False, f"Program not in allowed paths: {prog_path}"
-
-                # 3. Whitelist — Allow if whitelisted; deny if not
-                # Note whitelist overrides blacklist if set
+                # 2. Whitelist — Allow if whitelisted; deny if not
+                # Note whitelist overrides blacklist and PATH restriction if set
                 if COMPILED_WHITELIST_REGEX is not None:
                     if not COMPILED_WHITELIST_REGEX.fullmatch(prog):
                         return False, f"Program not in Whitelist: {prog}"
                     continue
+
+                # 2. PATH restriction
+                if not is_path_allowed(prog_path):
+                    return False, f"Program not in allowed paths: {prog_path}"
 
                 # 4. Blacklist — Deny if blacklisted
                 if COMPILED_BLACKLIST_REGEX.fullmatch(prog):

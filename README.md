@@ -263,11 +263,13 @@ examples, and default gestures.
 
 ### Command Whitelist Regex
 
-Regex (Python) of shell command that can be used in creating gesture action
-commands or when running the `run_command` and `run_commands` REST APIs.
+Regex (Python) of shell commands that can be used in creating gesture
+action commands or when running the `run_command` and `run_commands` REST
+APIs.
 
-If left blank, then all commands are allowed except for those blacklisted
-as dangerous (otherwise, whitelist overrides internal blacklist).
+If left blank, then all commands in `PATH=/bin:/usr/bin/:/usr/local/bin`
+are allowed except for those blacklisted as dangerous (otherwise, whitelist
+overrides path restrictions and internal blacklist).
 
 The pre-defined command blacklist includes commands like:
 
@@ -279,15 +281,12 @@ The pre-defined command blacklist includes commands like:
    cp, chmod, chown, dd, ln, mv, rm, tar
    mount, umount
    curl, nc, wget
-   find, xargs"
+   find, xargs
 ```
 
 Note that if you want to truly allow *all* commands, then use the wildcard
 `.*` but beware that it is DANGEROUS. If you want to disallow all commands
 set the regex to `^$`.
-
-Note that regardless of setting only commands found in `/bin`, `/usr/bin`,
-and `/usr/local/bin` of the HAOSKiosk Add-on container are allowed.
 
 ### VNC SERVER
 

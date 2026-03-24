@@ -1,9 +1,9 @@
 """-------------------------------------------------------------------------------
 # Add-on: HAOS Kiosk Display (haoskiosk)
 # File: services.py
-# Version: 1.3.0
+# Version: 1.3.1
 # Copyright Jeff Kosowsky
-# Date: February 2026
+# Date: March 2026
 
  Launch REST API server with following commands:
    POST /launch_url        {"url": "<url>"}
@@ -29,15 +29,14 @@
    - Requires REST_BEARER_TOKEN for protected commands if caller is not localhost
    - Commands must:
        - Satisfy whitelist regex
+       - Satisfy path restriction
        - Not be on blacklist
        - Not contain destructive tokens
      This can be over-ridden by setting ALLOW_ALL_USER_COMMANDS = True, BUT not allowed now
 
 #-------------------------------------------------------------------------------
 ###  MYTODOS:
- - Add broader whitelist
- - Add ability to import whitelist (maybe add special key to allow all?)
- - Test
+#
 #----------------------------------------------------------------------------"""
 # pylint: disable=line-too-long
 # pylint: disable=invalid-name
@@ -101,6 +100,7 @@ DEFAULT_LAUNCH_URL = f"{(os.getenv('HA_URL') or 'about:blank').rstrip('/')}/{os.
 
 ## Restrict paths to specific, non-system bins
 ALLOWED_PATHS = {"/bin", "/usr/bin", "/usr/local/bin"} # Executables must be in these directories
+ALLOWED_PATHS_STR = ":".join(ALLOWED_PATHS)
 
 ## Commands that are white-listed -- all others are blocked (Note: set to ".*" to allow all or "" to block all)
 DEFAULT_COMMAND_WHITELIST_REGEX = r"cat|date|dbus-send|echo|false|grep|head|ls|luakit|notify-send|ping|ping6|ps|pstree|sleep|tail|test|top|tree|xdotool|xset"
@@ -200,7 +200,8 @@ def is_path_allowed(prog_path: str) -> bool:
     """Return True if binary is in an allowed directory."""
     try:
         real_path = os.path.realpath(prog_path)
-        return any(real_path.startswith(allowed + "/") for allowed in ALLOWED_PATHS)
+        parent_dir = os.path.dirname(real_path)
+        return parent_dir in ALLOWED_PATHS
     except Exception:
         return False
 
@@ -232,25 +233,24 @@ def is_command_allowed(command_str: str) -> tuple[bool, str]:  #pylint: disable=
 
     for prog in programs:
         # 1. Program not found
-        prog_path = shutil.which(prog) or ""
+        prog_path = shutil.which(prog, path=ALLOWED_PATHS_STR) or ""
         if not prog_path:
             return False, f"Program not found: {prog}"
 
-        # 2. PATH restriction
-        if not is_path_allowed(prog_path):
-            return False, f"Program not in allowed paths: {prog_path}"
-
-        # 3. Whitelist — Allow if whitelisted; deny if not
-        # Note whitelist overrides blacklist if set
+        # 2. Whitelist — Allow if whitelisted; deny if not
+        # Note whitelist overrides blacklist and PATH restriction if set
         if COMPILED_WHITELIST_REGEX is not None:
             if not COMPILED_WHITELIST_REGEX.fullmatch(prog):
                 return False, f"Program not in Whitelist: {prog}"
             continue
 
-        # 4. Blacklist — Deny if blacklisted
+        # 3. PATH restriction
+        if not is_path_allowed(prog_path):
+            return False, f"Program not in allowed paths: {prog_path}"
+
+        # 4. Blacklist - Deny if blacklisted
         if COMPILED_BLACKLIST_REGEX.fullmatch(prog):
             return False, f"Blacklisted program: {prog}"
-
 
     return True, "Safe - Whitelisted"
 
